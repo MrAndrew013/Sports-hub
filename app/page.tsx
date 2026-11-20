@@ -555,6 +555,154 @@ function HomeContent() {
     setCreatingMatch(false);
   };
 
+const [importingTxt, setImportingTxt] = useState(false);
+
+  const handleImportScheduleTxt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeLeagueId) return;
+
+    setImportingTxt(true);
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+      let currentRound = 'Round 1';
+      let currentDateIso = new Date().toISOString();
+
+      // Regex για αναγνώριση αγωνιστικής και ημερομηνίας (π.χ. "1η Αγωνιστική - 3/10/2026")
+      const headerRegex = /^(.+?)\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+
+      const parsedMatches: {
+        round: string;
+        match_date: string;
+        homeName: string;
+        awayName: string;
+      }[] = [];
+
+      const uniqueTeamNames = new Set<string>();
+
+      for (const line of lines) {
+        const headerMatch = line.match(headerRegex);
+        if (headerMatch) {
+          currentRound = headerMatch[1].trim();
+          const day = headerMatch[2].padStart(2, '0');
+          const month = headerMatch[3].padStart(2, '0');
+          const year = headerMatch[4];
+          // Ορίζουμε προεπιλεγμένη ώρα 17:00
+          currentDateIso = new Date(`${year}-${month}-${day}T17:00:00`).toISOString();
+          continue;
+        }
+
+        // Αναγνώριση ζευγαριού ομάδων (π.χ. "ΟΜΑΔΑ Α - ΟΜΑΔΑ Β")
+        if (line.includes(' - ')) {
+          const parts = line.split(' - ');
+          if (parts.length === 2) {
+            const homeName = parts[0].trim();
+            const awayName = parts[1].trim();
+            if (homeName && awayName) {
+              uniqueTeamNames.add(homeName);
+              uniqueTeamNames.add(awayName);
+              parsedMatches.push({
+                round: currentRound,
+                match_date: currentDateIso,
+                homeName,
+                awayName,
+              });
+            }
+          }
+        }
+      }
+
+      if (parsedMatches.length === 0) {
+        alert('Δεν βρέθηκαν έγκυροι αγώνες στο αρχείο. Ελέγξτε τη μορφή του .txt.');
+        setImportingTxt(false);
+        e.target.value = '';
+        return;
+      }
+
+      // 1. Χαρτογράφηση υπαρχουσών ομάδων (case-insensitive)
+      const teamNameToId = new Map<string, string>();
+      allTeams.forEach((t) => {
+        teamNameToId.set(t.name.toLowerCase(), t.id);
+      });
+
+      const currentLeagueTeamIds = new Set(activeTeamIds);
+
+      // 2. Δημιουργία όσων ομάδων λείπουν & σύνδεση με τη λίγκα
+      for (const tName of uniqueTeamNames) {
+        let teamId = teamNameToId.get(tName.toLowerCase());
+
+        if (!teamId) {
+          const { data: createdTeam, error: createErr } = await supabase
+            .from('teams')
+            .insert([
+              {
+                name: tName,
+                theme_mode: 'dark',
+                primary_color: '#0284c7',
+                secondary_color: '#0f172a',
+                bg_color: '#090d16',
+                text_color: '#ffffff',
+              },
+            ])
+            .select()
+            .single();
+
+          if (createErr) {
+            console.error(`Error creating team ${tName}:`, createErr);
+            continue;
+          }
+          teamId = createdTeam.id;
+          teamNameToId.set(tName.toLowerCase(), teamId!);
+        }
+
+        if (teamId && !currentLeagueTeamIds.has(teamId)) {
+          await supabase.from('league_teams').insert([
+            {
+              league_id: activeLeagueId,
+              team_id: teamId,
+            },
+          ]);
+          currentLeagueTeamIds.add(teamId);
+        }
+      }
+
+      // 3. Μαζική εισαγωγή αγώνων
+     // 3. Μαζική εισαγωγή αγώνων
+      const matchesToInsert = parsedMatches
+        .map((m) => {
+          const hId = teamNameToId.get(m.homeName.toLowerCase());
+          const aId = teamNameToId.get(m.awayName.toLowerCase());
+          if (!hId || !aId) return null;
+          return {
+            league_id: activeLeagueId,
+            round: m.round,
+            home_team_id: hId,
+            away_team_id: aId,
+            match_date: m.match_date,
+            status: 'scheduled' as const,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+
+      const { error: insertMatchesError } = await supabase
+        .from('matches')
+        .insert(matchesToInsert);
+
+      if (insertMatchesError) {
+        alert(`Σφάλμα κατά την εισαγωγή αγώνων: ${insertMatchesError.message}`);
+      } else {
+        alert(`Επιτυχής εισαγωγή ${matchesToInsert.length} αγώνων και ${uniqueTeamNames.size} ομάδων!`);
+        await fetchData();
+      }
+    } catch (err: any) {
+      alert(`Σφάλμα ανάγνωσης αρχείου: ${err.message}`);
+    } finally {
+      setImportingTxt(false);
+      e.target.value = '';
+    }
+  };
+
   // --- Match Details Edit (Date & Round) ---
   const formatDateForInput = (isoDateString: string) => {
     if (!isoDateString) return '';
@@ -1287,8 +1435,19 @@ function HomeContent() {
                 onSubmit={handleCreateMatch}
                 className="p-4 bg-gray-800 text-white rounded-lg border border-gray-700 space-y-3"
               >
-                <h3 className="text-md font-semibold">Schedule Match in {activeLeague.name}</h3>
-                {activeTeams.length < 2 ? (
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-md font-semibold">Schedule Match in {activeLeague.name}</h3>
+                  <label className="cursor-pointer px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded transition shrink-0">
+                    {importingTxt ? '⏳ Importing...' : '📄 Import from .txt'}
+                    <input
+                      type="file"
+                      accept=".txt"
+                      onChange={handleImportScheduleTxt}
+                      disabled={importingTxt}
+                      className="hidden"
+                    />
+                  </label>
+                </div>                {activeTeams.length < 2 ? (
                   <p className="text-xs text-amber-400 bg-amber-950/40 p-2 rounded border border-amber-800">
                     Add at least 2 teams to this league to schedule a match.
                   </p>
