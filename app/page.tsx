@@ -1013,7 +1013,45 @@ const [importingTxt, setImportingTxt] = useState(false);
               </div>
             </div>
             <div className="text-sm text-gray-400">
-              {activeTeams.length} Teams | {activeMatches.length} Matches
+              <div className="border-b border-gray-800 pb-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              {activeLeague.logo_url ? (
+                <img
+                  src={activeLeague.logo_url}
+                  alt={activeLeague.name}
+                  className="w-10 h-10 object-contain rounded-lg bg-gray-800 p-1 border border-gray-700 shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center text-lg shrink-0">
+                  🏆
+                </div>
+              )}
+              <div>
+                <span className="text-xs font-bold uppercase text-blue-400">Selected League</span>
+                <h2 className="text-2xl font-bold text-white">
+                  {activeLeague.name} ({activeLeague.sport.toUpperCase()} - {activeLeague.season})
+                </h2>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Link
+                href={`/matches?leagueId=${activeLeague.id}&tab=standings`}
+                className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold transition"
+              >
+                📊 League Table
+              </Link>
+              <Link
+                href={`/matches?leagueId=${activeLeague.id}&tab=matches`}
+                className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-bold transition"
+              >
+                📅 League Matches
+              </Link>
+              <span className="text-sm text-gray-400 ml-1">
+                {activeTeams.length} Teams | {activeMatches.length} Matches
+              </span>
+            </div>
+            </div>
             </div>
           </div>
 
@@ -1223,6 +1261,20 @@ const [importingTxt, setImportingTxt] = useState(false);
                             </div>
 
                             <div className="flex items-center gap-2 shrink-0">
+                              <Link
+                                href={`/teams/${team.id}`}
+                                className="text-xs text-blue-400 hover:text-blue-300 font-bold"
+                                title="View Team Matches & Info"
+                              >
+                                📅 Matches
+                              </Link>
+                              <Link
+                                href={`/matches?leagueId=${activeLeague.id}&teamId=${team.id}&tab=standings`}
+                                className="text-xs text-amber-400 hover:text-amber-300 font-bold"
+                                title="View League Table"
+                              >
+                                📊 Table
+                              </Link>
                               <button
                                 onClick={() => openRoster(team)}
                                 className="text-xs text-emerald-400 hover:text-emerald-300 font-bold"
