@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { supabase } from '../lib/supabase';
 
 interface League {
@@ -58,9 +59,7 @@ interface Match {
   away_team?: { name: string };
 }
 
-export default function Home() {
-  const [mounted, setMounted] = useState(false);
-
+function HomeContent() {
   // Authentication State
   const [session, setSession] = useState<any>(null);
   const [email, setEmail] = useState('');
@@ -121,6 +120,12 @@ export default function Home() {
   const [matchDate, setMatchDate] = useState('');
   const [creatingMatch, setCreatingMatch] = useState(false);
 
+  // Match Edit State (Round & Date)
+  const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
+  const [editingMatchRound, setEditingMatchRound] = useState('');
+  const [editingMatchDate, setEditingMatchDate] = useState('');
+  const [savingMatchDetails, setSavingMatchDetails] = useState(false);
+
   // Box Score Editor State
   const [editingBoxScoreMatch, setEditingBoxScoreMatch] = useState<Match | null>(null);
   const [boxScoreStats, setBoxScoreStats] = useState<Record<string, PlayerStat>>({});
@@ -167,7 +172,6 @@ export default function Home() {
   };
 
   useEffect(() => {
-    setMounted(true);
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });
@@ -418,7 +422,7 @@ export default function Home() {
       alert(error.message);
     } else {
       setSelectedExistingTeamId('');
-      fetchData();
+      await fetchData();
     }
   };
 
@@ -456,7 +460,7 @@ export default function Home() {
 
       setTeamName('');
       setLogoUrl('');
-      fetchData();
+      await fetchData();
     }
     setCreatingTeam(false);
   };
@@ -551,6 +555,44 @@ export default function Home() {
     setCreatingMatch(false);
   };
 
+  // --- Match Details Edit (Date & Round) ---
+  const formatDateForInput = (isoDateString: string) => {
+    if (!isoDateString) return '';
+    const date = new Date(isoDateString);
+    const tzOffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+  };
+
+  const startEditingMatch = (m: Match) => {
+    setEditingMatchId(m.id);
+    setEditingMatchRound(m.round || 'Round 1');
+    setEditingMatchDate(formatDateForInput(m.match_date));
+  };
+
+  const handleSaveMatchDetails = async (matchId: string) => {
+    if (!editingMatchDate) {
+      alert('Please select a valid date and time.');
+      return;
+    }
+
+    setSavingMatchDetails(true);
+    const { error } = await supabase
+      .from('matches')
+      .update({
+        round: editingMatchRound.trim() || 'Round 1',
+        match_date: new Date(editingMatchDate).toISOString(),
+      })
+      .eq('id', matchId);
+
+    if (error) {
+      alert(error.message);
+    } else {
+      setEditingMatchId(null);
+      await fetchData();
+    }
+    setSavingMatchDetails(false);
+  };
+
   const handleUpdateScore = async (
     matchId: string,
     homeScore: number,
@@ -583,14 +625,6 @@ export default function Home() {
     if (error) alert(error.message);
     else fetchData();
   };
-
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-[#090d16] flex items-center justify-center text-slate-400 text-sm">
-        Loading Manager...
-      </div>
-    );
-  }
 
   if (!session) {
     return (
@@ -1354,94 +1388,148 @@ export default function Home() {
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {activeMatches.map((m) => (
-                      <div
-                        key={m.id}
-                        className="p-3 bg-gray-800 border border-gray-700 rounded-lg text-white flex flex-col sm:flex-row items-center justify-between gap-3"
-                      >
-                        <div className="flex flex-col text-xs text-gray-400">
-                          <span className="font-semibold text-cyan-400">
-                            {m.round || 'Round 1'}
-                          </span>
-                          <span>{new Date(m.match_date).toLocaleString('en-US')}</span>
-                        </div>
+                    {activeMatches.map((m) => {
+                      const isEditingMatch = editingMatchId === m.id;
 
-                        <div className="flex items-center gap-3">
-                          <span className="font-semibold text-sm w-28 text-right truncate">
-                            {m.home_team?.name || 'Home'}
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={m.home_score}
-                            onChange={(e) =>
-                              handleUpdateScore(
-                                m.id,
-                                parseInt(e.target.value) || 0,
-                                m.away_score,
-                                m.status,
-                                m.round
-                              )
-                            }
-                            className="w-12 text-center p-1 bg-gray-700 border border-gray-600 rounded text-sm font-bold"
-                          />
-                          <span className="text-gray-400 font-bold">-</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={m.away_score}
-                            onChange={(e) =>
-                              handleUpdateScore(
-                                m.id,
-                                m.home_score,
-                                parseInt(e.target.value) || 0,
-                                m.status,
-                                m.round
-                              )
-                            }
-                            className="w-12 text-center p-1 bg-gray-700 border border-gray-600 rounded text-sm font-bold"
-                          />
-                          <span className="font-semibold text-sm w-28 truncate">
-                            {m.away_team?.name || 'Away'}
-                          </span>
-                        </div>
+                      return (
+                        <div
+                          key={m.id}
+                          className="p-3 bg-gray-800 border border-gray-700 rounded-lg text-white space-y-3"
+                        >
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <div className="flex flex-col text-xs text-gray-400">
+                              <span className="font-semibold text-cyan-400">
+                                {m.round || 'Round 1'}
+                              </span>
+                              <span>{new Date(m.match_date).toLocaleString('en-US')}</span>
+                            </div>
 
-                        <div className="flex items-center gap-2">
-                          {activeLeague.sport.toLowerCase() === 'basketball' && (
-                            <button
-                              onClick={() => openBoxScoreEditor(m)}
-                              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 font-bold rounded text-xs text-white shrink-0"
-                            >
-                              📝 Edit Box Score
-                            </button>
+                            <div className="flex items-center gap-3">
+                              <span className="font-semibold text-sm w-28 text-right truncate">
+                                {m.home_team?.name || 'Home'}
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={m.home_score}
+                                onChange={(e) =>
+                                  handleUpdateScore(
+                                    m.id,
+                                    parseInt(e.target.value) || 0,
+                                    m.away_score,
+                                    m.status,
+                                    m.round
+                                  )
+                                }
+                                className="w-12 text-center p-1 bg-gray-700 border border-gray-600 rounded text-sm font-bold"
+                              />
+                              <span className="text-gray-400 font-bold">-</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={m.away_score}
+                                onChange={(e) =>
+                                  handleUpdateScore(
+                                    m.id,
+                                    m.home_score,
+                                    parseInt(e.target.value) || 0,
+                                    m.status,
+                                    m.round
+                                  )
+                                }
+                                className="w-12 text-center p-1 bg-gray-700 border border-gray-600 rounded text-sm font-bold"
+                              />
+                              <span className="font-semibold text-sm w-28 truncate">
+                                {m.away_team?.name || 'Away'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {activeLeague.sport.toLowerCase() === 'basketball' && (
+                                <button
+                                  onClick={() => openBoxScoreEditor(m)}
+                                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 font-bold rounded text-xs text-white shrink-0"
+                                >
+                                  📝 Box Score
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() =>
+                                  isEditingMatch ? setEditingMatchId(null) : startEditingMatch(m)
+                                }
+                                className="px-2 py-1 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/30 rounded text-xs font-medium shrink-0"
+                              >
+                                {isEditingMatch ? 'Cancel' : '✏️ Edit'}
+                              </button>
+
+                              <select
+                                value={m.status}
+                                onChange={(e) =>
+                                  handleUpdateScore(
+                                    m.id,
+                                    m.home_score,
+                                    m.away_score,
+                                    e.target.value as Match['status'],
+                                    m.round
+                                  )
+                                }
+                                className="text-xs p-1 bg-gray-700 border border-gray-600 rounded text-gray-200"
+                              >
+                                <option value="scheduled">Scheduled</option>
+                                <option value="live">Live</option>
+                                <option value="finished">Finished</option>
+                              </select>
+                              <button
+                                onClick={() => handleDeleteMatch(m.id)}
+                                className="text-xs text-red-400 hover:text-red-300"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Inline Edit Form for Round & Date */}
+                          {isEditingMatch && (
+                            <div className="pt-2.5 border-t border-gray-700 flex flex-wrap items-end justify-between gap-3 bg-gray-900/60 p-2.5 rounded-lg">
+                              <div className="flex-1 min-w-[140px]">
+                                <label className="block text-[11px] text-gray-400 mb-1">
+                                  Round / Stage
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editingMatchRound}
+                                  onChange={(e) => setEditingMatchRound(e.target.value)}
+                                  list="round-presets"
+                                  className="w-full p-1.5 rounded bg-gray-800 border border-cyan-500 text-xs text-white focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="flex-1 min-w-[180px]">
+                                <label className="block text-[11px] text-gray-400 mb-1">
+                                  Date & Time
+                                </label>
+                                <input
+                                  type="datetime-local"
+                                  value={editingMatchDate}
+                                  onChange={(e) => setEditingMatchDate(e.target.value)}
+                                  className="w-full p-1.5 rounded bg-gray-800 border border-cyan-500 text-xs text-white focus:outline-none"
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                disabled={savingMatchDetails}
+                                onClick={() => handleSaveMatchDetails(m.id)}
+                                className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-xs font-bold rounded text-white disabled:opacity-50 shrink-0"
+                              >
+                                {savingMatchDetails ? 'Saving...' : 'Save Changes'}
+                              </button>
+                            </div>
                           )}
-
-                          <select
-                            value={m.status}
-                            onChange={(e) =>
-                              handleUpdateScore(
-                                m.id,
-                                m.home_score,
-                                m.away_score,
-                                e.target.value as Match['status'],
-                                m.round
-                              )
-                            }
-                            className="text-xs p-1 bg-gray-700 border border-gray-600 rounded text-gray-200"
-                          >
-                            <option value="scheduled">Scheduled</option>
-                            <option value="live">Live</option>
-                            <option value="finished">Finished</option>
-                          </select>
-                          <button
-                            onClick={() => handleDeleteMatch(m.id)}
-                            className="text-xs text-red-400 hover:text-red-300"
-                          >
-                            ✕
-                          </button>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1564,3 +1652,7 @@ export default function Home() {
     </main>
   );
 }
+
+export default dynamic(() => Promise.resolve(HomeContent), {
+  ssr: false,
+});
