@@ -1560,7 +1560,15 @@ const [importingTxt, setImportingTxt] = useState(false);
                               <span className="font-semibold text-cyan-400">
                                 {m.round || 'Round 1'}
                               </span>
-                              <span>{new Date(m.match_date).toLocaleString('en-US')}</span>
+                              <span>
+                                {new Date(m.match_date).toLocaleString('en-GB', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                              </span>
                             </div>
 
                             <div className="flex items-center gap-3">
