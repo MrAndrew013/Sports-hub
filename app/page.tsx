@@ -126,6 +126,10 @@ function HomeContent() {
   const [editingMatchDate, setEditingMatchDate] = useState('');
   const [savingMatchDetails, setSavingMatchDetails] = useState(false);
 
+  // Admin Matches Filter States
+  const [matchTeamFilter, setMatchTeamFilter] = useState<string>('all');
+  const [matchRoundFilter, setMatchRoundFilter] = useState<string>('all');
+
   // Box Score Editor State
   const [editingBoxScoreMatch, setEditingBoxScoreMatch] = useState<Match | null>(null);
   const [boxScoreStats, setBoxScoreStats] = useState<Record<string, PlayerStat>>({});
@@ -1589,169 +1593,292 @@ const [importingTxt, setImportingTxt] = useState(false);
               </form>
 
               {/* Matches List */}
-              <div className="space-y-3">
-                <h3 className="text-md font-semibold text-white">
-                  Matches ({activeMatches.length})
-                </h3>
-                {activeMatches.length === 0 ? (
-                  <p className="text-sm text-gray-500 italic">
-                    No matches scheduled in this league yet.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {activeMatches.map((m) => {
-                      const isEditingMatch = editingMatchId === m.id;
+              {/* Matches List (Filtered & Grouped by Round) */}
+              {(() => {
+                const uniqueRounds = Array.from(
+                  new Set(activeMatches.map((m) => m.round || 'Round 1'))
+                );
 
-                      return (
-                        <div
-                          key={m.id}
-                          className="p-3 bg-gray-800 border border-gray-700 rounded-lg text-white space-y-3"
+                const filteredAdminMatches = activeMatches.filter((m) => {
+                  if (
+                    matchTeamFilter !== 'all' &&
+                    m.home_team_id !== matchTeamFilter &&
+                    m.away_team_id !== matchTeamFilter
+                  ) {
+                    return false;
+                  }
+                  if (
+                    matchRoundFilter !== 'all' &&
+                    (m.round || 'Round 1') !== matchRoundFilter
+                  ) {
+                    return false;
+                  }
+                  return true;
+                });
+
+                const groupedMatches = filteredAdminMatches.reduce<Record<string, Match[]>>(
+                  (acc, match) => {
+                    const r = match.round || 'Round 1';
+                    if (!acc[r]) acc[r] = [];
+                    acc[r].push(match);
+                    return acc;
+                  },
+                  {}
+                );
+
+                return (
+                  <div className="space-y-4">
+                    {/* Header & Filters */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-gray-800/80 p-3 rounded-lg border border-gray-700">
+                      <h3 className="text-md font-semibold text-white">
+                        Matches ({filteredAdminMatches.length}
+                        {filteredAdminMatches.length !== activeMatches.length
+                          ? ` / ${activeMatches.length}`
+                          : ''}
+                        )
+                      </h3>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Team Filter */}
+                        <select
+                          value={matchTeamFilter}
+                          onChange={(e) => setMatchTeamFilter(e.target.value)}
+                          className="p-1.5 rounded bg-gray-700 text-white border border-gray-600 text-xs focus:outline-none"
                         >
-                          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                            <div className="flex flex-col text-xs text-gray-400">
-                              <span className="font-semibold text-cyan-400">
-                                {m.round || 'Round 1'}
+                          <option value="all">All Teams</option>
+                          {activeTeams.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </select>
+
+                        {/* Round Filter */}
+                        <select
+                          value={matchRoundFilter}
+                          onChange={(e) => setMatchRoundFilter(e.target.value)}
+                          className="p-1.5 rounded bg-gray-700 text-white border border-gray-600 text-xs focus:outline-none"
+                        >
+                          <option value="all">All Rounds</option>
+                          {uniqueRounds.map((r) => (
+                            <option key={r} value={r}>
+                              {r}
+                            </option>
+                          ))}
+                        </select>
+
+                        {(matchTeamFilter !== 'all' || matchRoundFilter !== 'all') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMatchTeamFilter('all');
+                              setMatchRoundFilter('all');
+                            }}
+                            className="px-2 py-1.5 bg-gray-700 hover:bg-gray-600 text-xs text-gray-300 rounded border border-gray-600"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {filteredAdminMatches.length === 0 ? (
+                      <p className="text-sm text-gray-500 italic">
+                        No matches found for the selected filters.
+                      </p>
+                    ) : (
+                      <div className="space-y-6">
+                        {Object.entries(groupedMatches).map(([roundName, roundMatches]) => (
+                          <div key={roundName} className="space-y-2.5">
+                            {/* Round Group Header */}
+                            <div className="flex items-center justify-between px-3 py-1.5 bg-gray-900/90 border border-gray-700/80 rounded-lg">
+                              <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
+                                {roundName}
                               </span>
-                              <span>
-                                {new Date(m.match_date).toLocaleString('en-GB', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
+                              <span className="text-[11px] text-gray-400">
+                                {roundMatches.length}{' '}
+                                {roundMatches.length === 1 ? 'match' : 'matches'}
+                              </span>
+                            </div>
+
+                            {/* Matches in this Round */}
+                            <div className="space-y-2.5">
+                              {roundMatches.map((m) => {
+                                const isEditingMatch = editingMatchId === m.id;
+
+                                return (
+                                  <div
+                                    key={m.id}
+                                    className="p-3 bg-gray-800 border border-gray-700 rounded-lg text-white space-y-3"
+                                  >
+                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                                      <div className="flex flex-col text-xs text-gray-400">
+                                        <span className="font-semibold text-cyan-400">
+                                          {m.round || 'Round 1'}
+                                        </span>
+                                        <span>
+                                          {new Date(m.match_date).toLocaleString('en-GB', {
+                                            day: '2-digit',
+                                            month: '2-digit',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                          })}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center gap-3">
+                                        <span
+                                          className={`font-semibold text-sm w-28 text-right truncate ${
+                                            matchTeamFilter === m.home_team_id
+                                              ? 'text-cyan-300 underline'
+                                              : ''
+                                          }`}
+                                        >
+                                          {m.home_team?.name || 'Home'}
+                                        </span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={m.home_score}
+                                          onChange={(e) =>
+                                            handleUpdateScore(
+                                              m.id,
+                                              parseInt(e.target.value) || 0,
+                                              m.away_score,
+                                              m.status,
+                                              m.round
+                                            )
+                                          }
+                                          className="w-12 text-center p-1 bg-gray-700 border border-gray-600 rounded text-sm font-bold"
+                                        />
+                                        <span className="text-gray-400 font-bold">-</span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={m.away_score}
+                                          onChange={(e) =>
+                                            handleUpdateScore(
+                                              m.id,
+                                              m.home_score,
+                                              parseInt(e.target.value) || 0,
+                                              m.status,
+                                              m.round
+                                            )
+                                          }
+                                          className="w-12 text-center p-1 bg-gray-700 border border-gray-600 rounded text-sm font-bold"
+                                        />
+                                        <span
+                                          className={`font-semibold text-sm w-28 truncate ${
+                                            matchTeamFilter === m.away_team_id
+                                              ? 'text-cyan-300 underline'
+                                              : ''
+                                          }`}
+                                        >
+                                          {m.away_team?.name || 'Away'}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center gap-2">
+                                        {activeLeague.sport.toLowerCase() === 'basketball' && (
+                                          <button
+                                            onClick={() => openBoxScoreEditor(m)}
+                                            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 font-bold rounded text-xs text-white shrink-0"
+                                          >
+                                            📝 Box Score
+                                          </button>
+                                        )}
+
+                                        <button
+                                          onClick={() =>
+                                            isEditingMatch
+                                              ? setEditingMatchId(null)
+                                              : startEditingMatch(m)
+                                          }
+                                          className="px-2 py-1 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/30 rounded text-xs font-medium shrink-0"
+                                        >
+                                          {isEditingMatch ? 'Cancel' : '✏️ Edit'}
+                                        </button>
+
+                                        <select
+                                          value={m.status}
+                                          onChange={(e) =>
+                                            handleUpdateScore(
+                                              m.id,
+                                              m.home_score,
+                                              m.away_score,
+                                              e.target.value as Match['status'],
+                                              m.round
+                                            )
+                                          }
+                                          className="text-xs p-1 bg-gray-700 border border-gray-600 rounded text-gray-200"
+                                        >
+                                          <option value="scheduled">Scheduled</option>
+                                          <option value="live">Live</option>
+                                          <option value="finished">Finished</option>
+                                        </select>
+                                        <button
+                                          onClick={() => handleDeleteMatch(m.id)}
+                                          className="text-xs text-red-400 hover:text-red-300"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Inline Edit Form for Round & Date */}
+                                    {isEditingMatch && (
+                                      <div className="pt-2.5 border-t border-gray-700 flex flex-wrap items-end justify-between gap-3 bg-gray-900/60 p-2.5 rounded-lg">
+                                        <div className="flex-1 min-w-[140px]">
+                                          <label className="block text-[11px] text-gray-400 mb-1">
+                                            Round / Stage
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={editingMatchRound}
+                                            onChange={(e) =>
+                                              setEditingMatchRound(e.target.value)
+                                            }
+                                            list="round-presets"
+                                            className="w-full p-1.5 rounded bg-gray-800 border border-cyan-500 text-xs text-white focus:outline-none"
+                                          />
+                                        </div>
+
+                                        <div className="flex-1 min-w-[180px]">
+                                          <label className="block text-[11px] text-gray-400 mb-1">
+                                            Date & Time
+                                          </label>
+                                          <input
+                                            type="datetime-local"
+                                            value={editingMatchDate}
+                                            onChange={(e) =>
+                                              setEditingMatchDate(e.target.value)
+                                            }
+                                            className="w-full p-1.5 rounded bg-gray-800 border border-cyan-500 text-xs text-white focus:outline-none"
+                                          />
+                                        </div>
+
+                                        <button
+                                          type="button"
+                                          disabled={savingMatchDetails}
+                                          onClick={() => handleSaveMatchDetails(m.id)}
+                                          className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-xs font-bold rounded text-white disabled:opacity-50 shrink-0"
+                                        >
+                                          {savingMatchDetails ? 'Saving...' : 'Save Changes'}
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
                               })}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                              <span className="font-semibold text-sm w-28 text-right truncate">
-                                {m.home_team?.name || 'Home'}
-                              </span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={m.home_score}
-                                onChange={(e) =>
-                                  handleUpdateScore(
-                                    m.id,
-                                    parseInt(e.target.value) || 0,
-                                    m.away_score,
-                                    m.status,
-                                    m.round
-                                  )
-                                }
-                                className="w-12 text-center p-1 bg-gray-700 border border-gray-600 rounded text-sm font-bold"
-                              />
-                              <span className="text-gray-400 font-bold">-</span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={m.away_score}
-                                onChange={(e) =>
-                                  handleUpdateScore(
-                                    m.id,
-                                    m.home_score,
-                                    parseInt(e.target.value) || 0,
-                                    m.status,
-                                    m.round
-                                  )
-                                }
-                                className="w-12 text-center p-1 bg-gray-700 border border-gray-600 rounded text-sm font-bold"
-                              />
-                              <span className="font-semibold text-sm w-28 truncate">
-                                {m.away_team?.name || 'Away'}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              {activeLeague.sport.toLowerCase() === 'basketball' && (
-                                <button
-                                  onClick={() => openBoxScoreEditor(m)}
-                                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 font-bold rounded text-xs text-white shrink-0"
-                                >
-                                  📝 Box Score
-                                </button>
-                              )}
-
-                              <button
-                                onClick={() =>
-                                  isEditingMatch ? setEditingMatchId(null) : startEditingMatch(m)
-                                }
-                                className="px-2 py-1 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/30 rounded text-xs font-medium shrink-0"
-                              >
-                                {isEditingMatch ? 'Cancel' : '✏️ Edit'}
-                              </button>
-
-                              <select
-                                value={m.status}
-                                onChange={(e) =>
-                                  handleUpdateScore(
-                                    m.id,
-                                    m.home_score,
-                                    m.away_score,
-                                    e.target.value as Match['status'],
-                                    m.round
-                                  )
-                                }
-                                className="text-xs p-1 bg-gray-700 border border-gray-600 rounded text-gray-200"
-                              >
-                                <option value="scheduled">Scheduled</option>
-                                <option value="live">Live</option>
-                                <option value="finished">Finished</option>
-                              </select>
-                              <button
-                                onClick={() => handleDeleteMatch(m.id)}
-                                className="text-xs text-red-400 hover:text-red-300"
-                              >
-                                ✕
-                              </button>
                             </div>
                           </div>
-
-                          {/* Inline Edit Form for Round & Date */}
-                          {isEditingMatch && (
-                            <div className="pt-2.5 border-t border-gray-700 flex flex-wrap items-end justify-between gap-3 bg-gray-900/60 p-2.5 rounded-lg">
-                              <div className="flex-1 min-w-[140px]">
-                                <label className="block text-[11px] text-gray-400 mb-1">
-                                  Round / Stage
-                                </label>
-                                <input
-                                  type="text"
-                                  value={editingMatchRound}
-                                  onChange={(e) => setEditingMatchRound(e.target.value)}
-                                  list="round-presets"
-                                  className="w-full p-1.5 rounded bg-gray-800 border border-cyan-500 text-xs text-white focus:outline-none"
-                                />
-                              </div>
-
-                              <div className="flex-1 min-w-[180px]">
-                                <label className="block text-[11px] text-gray-400 mb-1">
-                                  Date & Time
-                                </label>
-                                <input
-                                  type="datetime-local"
-                                  value={editingMatchDate}
-                                  onChange={(e) => setEditingMatchDate(e.target.value)}
-                                  className="w-full p-1.5 rounded bg-gray-800 border border-cyan-500 text-xs text-white focus:outline-none"
-                                />
-                              </div>
-
-                              <button
-                                type="button"
-                                disabled={savingMatchDetails}
-                                onClick={() => handleSaveMatchDetails(m.id)}
-                                className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-xs font-bold rounded text-white disabled:opacity-50 shrink-0"
-                              >
-                                {savingMatchDetails ? 'Saving...' : 'Save Changes'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </div>
           </div>
         </section>
