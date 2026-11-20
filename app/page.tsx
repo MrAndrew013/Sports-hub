@@ -1233,26 +1233,28 @@ const [importingTxt, setImportingTxt] = useState(false);
                           key={team.id}
                           className="p-2.5 bg-gray-700/60 rounded-lg border border-gray-600/50 space-y-2 text-sm"
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2.5 overflow-hidden">
-                              {team.logo_url ? (
-                                <img
-                                  src={team.logo_url}
-                                  alt=""
-                                  className="w-6 h-6 object-contain rounded bg-gray-800 p-0.5 shrink-0"
-                                />
-                              ) : (
-                                <div
-                                  style={{ backgroundColor: team.primary_color || '#0284c7' }}
-                                  className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-white shrink-0"
-                                >
-                                  {team.name.charAt(0)}
-                                </div>
-                              )}
-                              <div className="flex items-center gap-1.5 truncate">
+                          <div className="space-y-2">
+                            {/* Top Row: Team Logo + Full Name + Remove button */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {team.logo_url ? (
+                                  <img
+                                    src={team.logo_url}
+                                    alt=""
+                                    className="w-6 h-6 object-contain rounded bg-gray-800 p-0.5 shrink-0"
+                                  />
+                                ) : (
+                                  <div
+                                    style={{ backgroundColor: team.primary_color || '#0284c7' }}
+                                    className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-white shrink-0"
+                                  >
+                                    {team.name.charAt(0)}
+                                  </div>
+                                )}
                                 <Link
                                   href={`/teams/${team.id}`}
-                                  className="font-medium truncate hover:text-cyan-400 hover:underline"
+                                  className="font-semibold text-xs sm:text-sm truncate hover:text-cyan-400 hover:underline"
+                                  title={team.name}
                                 >
                                   {team.name}
                                 </Link>
@@ -1262,26 +1264,33 @@ const [importingTxt, setImportingTxt] = useState(false);
                                   title={`Accent: ${team.primary_color}`}
                                 />
                               </div>
+
+                              <button
+                                onClick={() => handleRemoveTeamFromLeague(team.id, team.name)}
+                                className="text-gray-400 hover:text-red-400 text-xs px-1 shrink-0"
+                                title="Remove from league"
+                              >
+                                ✕
+                              </button>
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0">
+                            {/* Bottom Row: Action Buttons */}
+                            <div className="flex flex-wrap items-center gap-2 pt-1.5 border-t border-gray-600/40">
                               <Link
                                 href={`/teams/${team.id}`}
-                                className="text-xs text-blue-400 hover:text-blue-300 font-bold"
-                                title="View Team Matches & Info"
+                                className="px-2 py-0.5 rounded bg-blue-500/10 hover:bg-blue-500/20 text-[11px] text-blue-300 font-semibold border border-blue-500/20"
                               >
                                 📅 Matches
                               </Link>
                               <Link
                                 href={`/matches?leagueId=${activeLeague.id}&teamId=${team.id}&tab=standings`}
-                                className="text-xs text-amber-400 hover:text-amber-300 font-bold"
-                                title="View League Table"
+                                className="px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-[11px] text-amber-300 font-semibold border border-amber-500/20"
                               >
                                 📊 Table
                               </Link>
                               <button
                                 onClick={() => openRoster(team)}
-                                className="text-xs text-emerald-400 hover:text-emerald-300 font-bold"
+                                className="px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-[11px] text-emerald-300 font-semibold border border-emerald-500/20"
                               >
                                 👥 Roster
                               </button>
@@ -1289,16 +1298,9 @@ const [importingTxt, setImportingTxt] = useState(false);
                                 onClick={() =>
                                   isEditing ? cancelEditingTeam() : startEditingTeam(team)
                                 }
-                                className="text-xs text-cyan-400 hover:text-cyan-300 font-medium"
+                                className="px-2 py-0.5 rounded bg-cyan-500/10 hover:bg-cyan-500/20 text-[11px] text-cyan-300 font-semibold border border-cyan-500/20 ml-auto"
                               >
                                 {isEditing ? 'Cancel' : 'Edit'}
-                              </button>
-                              <button
-                                onClick={() => handleRemoveTeamFromLeague(team.id, team.name)}
-                                className="text-gray-400 hover:text-red-400 text-xs px-1"
-                                title="Remove from league"
-                              >
-                                ✕
                               </button>
                             </div>
                           </div>
@@ -1711,11 +1713,13 @@ const [importingTxt, setImportingTxt] = useState(false);
                                     key={m.id}
                                     className="p-3 bg-gray-800 border border-gray-700 rounded-lg text-white space-y-3"
                                   >
-                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                                      <div className="flex flex-col text-xs text-gray-400">
+                                    {/* Top Bar: Date/Round & Controls */}
+                                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-700/70">
+                                      <div className="flex items-center gap-2 text-xs text-gray-400">
                                         <span className="font-semibold text-cyan-400">
                                           {m.round || 'Round 1'}
                                         </span>
+                                        <span>•</span>
                                         <span>
                                           {new Date(m.match_date).toLocaleString('en-GB', {
                                             day: '2-digit',
@@ -1727,16 +1731,69 @@ const [importingTxt, setImportingTxt] = useState(false);
                                         </span>
                                       </div>
 
-                                      <div className="flex items-center gap-3">
-                                        <span
-                                          className={`font-semibold text-sm w-28 text-right truncate ${
-                                            matchTeamFilter === m.home_team_id
-                                              ? 'text-cyan-300 underline'
-                                              : ''
-                                          }`}
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        {activeLeague.sport.toLowerCase() === 'basketball' && (
+                                          <button
+                                            onClick={() => openBoxScoreEditor(m)}
+                                            className="px-2 py-1 bg-amber-600 hover:bg-amber-500 font-bold rounded text-[11px] text-white"
+                                          >
+                                            📝 Box Score
+                                          </button>
+                                        )}
+
+                                        <button
+                                          onClick={() =>
+                                            isEditingMatch
+                                              ? setEditingMatchId(null)
+                                              : startEditingMatch(m)
+                                          }
+                                          className="px-2 py-1 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/30 rounded text-[11px] font-medium"
                                         >
-                                          {m.home_team?.name || 'Home'}
-                                        </span>
+                                          {isEditingMatch ? 'Cancel' : '✏️ Edit'}
+                                        </button>
+
+                                        <select
+                                          value={m.status}
+                                          onChange={(e) =>
+                                            handleUpdateScore(
+                                              m.id,
+                                              m.home_score,
+                                              m.away_score,
+                                              e.target.value as Match['status'],
+                                              m.round
+                                            )
+                                          }
+                                          className="text-[11px] p-1 bg-gray-700 border border-gray-600 rounded text-gray-200"
+                                        >
+                                          <option value="scheduled">Scheduled</option>
+                                          <option value="live">Live</option>
+                                          <option value="finished">Finished</option>
+                                        </select>
+
+                                        <button
+                                          onClick={() => handleDeleteMatch(m.id)}
+                                          className="text-xs text-red-400 hover:text-red-300 px-1.5 py-1"
+                                          title="Delete match"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Scoreboard Row */}
+                                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 pt-0.5">
+                                      <span
+                                        className={`font-semibold text-xs sm:text-sm text-right truncate ${
+                                          matchTeamFilter === m.home_team_id
+                                            ? 'text-cyan-300 underline'
+                                            : ''
+                                        }`}
+                                        title={m.home_team?.name}
+                                      >
+                                        {m.home_team?.name || 'Home'}
+                                      </span>
+
+                                      <div className="flex items-center gap-2 shrink-0">
                                         <input
                                           type="number"
                                           min="0"
@@ -1768,62 +1825,18 @@ const [importingTxt, setImportingTxt] = useState(false);
                                           }
                                           className="w-12 text-center p-1 bg-gray-700 border border-gray-600 rounded text-sm font-bold"
                                         />
-                                        <span
-                                          className={`font-semibold text-sm w-28 truncate ${
-                                            matchTeamFilter === m.away_team_id
-                                              ? 'text-cyan-300 underline'
-                                              : ''
-                                          }`}
-                                        >
-                                          {m.away_team?.name || 'Away'}
-                                        </span>
                                       </div>
 
-                                      <div className="flex items-center gap-2">
-                                        {activeLeague.sport.toLowerCase() === 'basketball' && (
-                                          <button
-                                            onClick={() => openBoxScoreEditor(m)}
-                                            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 font-bold rounded text-xs text-white shrink-0"
-                                          >
-                                            📝 Box Score
-                                          </button>
-                                        )}
-
-                                        <button
-                                          onClick={() =>
-                                            isEditingMatch
-                                              ? setEditingMatchId(null)
-                                              : startEditingMatch(m)
-                                          }
-                                          className="px-2 py-1 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/30 rounded text-xs font-medium shrink-0"
-                                        >
-                                          {isEditingMatch ? 'Cancel' : '✏️ Edit'}
-                                        </button>
-
-                                        <select
-                                          value={m.status}
-                                          onChange={(e) =>
-                                            handleUpdateScore(
-                                              m.id,
-                                              m.home_score,
-                                              m.away_score,
-                                              e.target.value as Match['status'],
-                                              m.round
-                                            )
-                                          }
-                                          className="text-xs p-1 bg-gray-700 border border-gray-600 rounded text-gray-200"
-                                        >
-                                          <option value="scheduled">Scheduled</option>
-                                          <option value="live">Live</option>
-                                          <option value="finished">Finished</option>
-                                        </select>
-                                        <button
-                                          onClick={() => handleDeleteMatch(m.id)}
-                                          className="text-xs text-red-400 hover:text-red-300"
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
+                                      <span
+                                        className={`font-semibold text-xs sm:text-sm text-left truncate ${
+                                          matchTeamFilter === m.away_team_id
+                                            ? 'text-cyan-300 underline'
+                                            : ''
+                                        }`}
+                                        title={m.away_team?.name}
+                                      >
+                                        {m.away_team?.name || 'Away'}
+                                      </span>
                                     </div>
 
                                     {/* Inline Edit Form for Round & Date */}
